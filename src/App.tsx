@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -10,6 +9,7 @@ import Board from './pages/Board';
 import Settings from './pages/Settings';
 import { AnimatePresence } from 'framer-motion';
 import AnimatedPage from './components/Layout/AnimatedPage';
+import { Toaster } from 'react-hot-toast';
 
 const AppRoutes = () => {
   const location = useLocation();
@@ -74,6 +74,7 @@ function App() {
       <AuthProvider>
         <Router>
           <div className="App">
+            <Toaster />
             <AppRoutes />
           </div>
         </Router>

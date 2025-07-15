@@ -7,24 +7,36 @@ import BoardCard from '../components/Dashboard/BoardCard';
 import CreateBoardModal from '../components/Dashboard/CreateBoardModal';
 import { Plus, Trello } from 'lucide-react';
 import AnimatedButton from '../components/Layout/AnimatedButton';
+import CalendarView from '../components/Dashboard/CalendarView';
+import toast from "react-hot-toast"
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const { boards, createBoard, deleteBoard, loading } = useBoards();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const navigate = useNavigate();
 
   const handleCreateBoard = async (title: string, description?: string) => {
-    const board = await createBoard(title, description);
-    if (board) {
-      navigate(`/board/${board.id}`);
-    }
+    toast.promise(
+      createBoard(title, description),
+      {
+        loading: 'Creating board...',
+        success: 'Board created!',
+        error: 'Failed to create board.',
+      }
+    ).then((board) => {
+      if (board?.id) {
+        navigate(`/board/${board.id}`);
+      }
+    });
   };
 
   const renderContent = () => {
     if (loading) {
       return <div className="text-center py-16">Loading boards...</div>;
     }
+    console.log("Logging boards:", boards);
 
     if (boards.length > 0) {
       return (
@@ -88,12 +100,25 @@ const Dashboard: React.FC = () => {
         </div>
 
         {renderContent()}
+
+        <div className="mt-8">
+          <CalendarView
+            onDateClick={(date) => {
+              setSelectedDate(date);
+              setIsCreateModalOpen(true);
+            }}
+          />
+        </div>
       </main>
 
       <CreateBoardModal
         isOpen={isCreateModalOpen}
-        onClose={() => setIsCreateModalOpen(false)}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          setSelectedDate(null);
+        }}
         onSubmit={handleCreateBoard}
+        selectedDate={selectedDate}
       />
     </div>
   );

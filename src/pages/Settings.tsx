@@ -1,14 +1,38 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import Header from '../components/Layout/Header';
-import { ArrowLeft, User, Moon, Sun, Bell, Shield } from 'lucide-react';
+import { ArrowLeft, Moon, Sun, Bell, Shield } from 'lucide-react';
+import ProfileSettings from '../components/Auth/ProfileSettings';
+import TwoFactorAuthSetup from '../components/Auth/TwoFactorAuthSetup';
+import ChangePasswordForm from '../components/Auth/ChangePasswordForm';
 
 const Settings: React.FC = () => {
   const { user } = useAuth();
   const { isDarkMode, toggleTheme } = useTheme();
   const navigate = useNavigate();
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+  const [emailNotifications, setEmailNotifications] = useState(true);
+  const [pushNotifications, setPushNotifications] = useState(true);
+
+  useEffect(() => {
+    if (user) {
+      // Assuming user object has notification preferences
+      // setEmailNotifications(user.emailNotifications ?? true);
+      // setPushNotifications(user.pushNotifications ?? true);
+    }
+  }, [user]);
+
+  const handleSaveChanges = async () => {
+    // Assuming you have a function to update user preferences
+    // await updateUser({
+    //   ...user,
+    //   emailNotifications,
+    //   pushNotifications,
+    // });
+    alert('Settings saved!');
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -27,49 +51,7 @@ const Settings: React.FC = () => {
 
         <div className="space-y-6">
           {/* Profile Settings */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <div className="flex items-center space-x-3 mb-6">
-              <User className="w-5 h-5 text-gray-600 dark:text-gray-400" />
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Profile</h2>
-            </div>
-            
-            <div className="flex items-center space-x-4 mb-6">
-              {user?.avatar && (
-                <img
-                  src={user.avatar}
-                  alt={user.name}
-                  className="w-16 h-16 rounded-full"
-                />
-              )}
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white">{user?.name}</h3>
-                <p className="text-gray-600 dark:text-gray-400">{user?.email}</p>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Name
-                </label>
-                <input
-                  type="text"
-                  defaultValue={user?.name}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  defaultValue={user?.email}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-              </div>
-            </div>
-          </div>
+          <ProfileSettings />
 
           {/* Appearance Settings */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -117,7 +99,8 @@ const Settings: React.FC = () => {
                 </div>
                 <input
                   type="checkbox"
-                  defaultChecked
+                  checked={emailNotifications}
+                  onChange={() => setEmailNotifications(prev => !prev)}
                   className="h-4 w-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                 />
               </div>
@@ -129,7 +112,8 @@ const Settings: React.FC = () => {
                 </div>
                 <input
                   type="checkbox"
-                  defaultChecked
+                  checked={pushNotifications}
+                  onChange={() => setPushNotifications(prev => !prev)}
                   className="h-4 w-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                 />
               </div>
@@ -144,26 +128,35 @@ const Settings: React.FC = () => {
             </div>
             
             <div className="space-y-4">
-              <button className="w-full text-left p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+              <button
+                onClick={() => setIsChangePasswordOpen(true)}
+                className="w-full text-left p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white">Change Password</h3>
                 <p className="text-gray-600 dark:text-gray-400">Update your account password</p>
               </button>
               
-              <button className="w-full text-left p-4 border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white">Two-Factor Authentication</h3>
-                <p className="text-gray-600 dark:text-gray-400">Add an extra layer of security to your account</p>
-              </button>
+              <TwoFactorAuthSetup />
             </div>
           </div>
 
           {/* Save Button */}
           <div className="flex justify-end">
-            <button className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+            <button
+              onClick={handleSaveChanges}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            >
               Save Changes
             </button>
           </div>
         </div>
       </main>
+
+      {isChangePasswordOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <ChangePasswordForm onClose={() => setIsChangePasswordOpen(false)} />
+        </div>
+      )}
     </div>
   );
 };

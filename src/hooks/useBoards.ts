@@ -2,9 +2,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { Board, List, Card, Label } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { pb } from '../lib/pocketbase';
-import { RecordModel } from 'pocketbase';
+import { RecordModel, ClientResponseError } from 'pocketbase';
 
-const mapRecordToBoard = (record: RecordModel, lists: List[] = []): Board => ({
+const mapRecordToBoard = (record: RecordModel, lists: List[] = [], labels: Label[] = []): Board => ({
   id: record.id,
   title: record.title,
   description: record.description,
@@ -13,6 +13,7 @@ const mapRecordToBoard = (record: RecordModel, lists: List[] = []): Board => ({
   members: [], // This would need more logic to handle relations
   activity: [], // This would need more logic to handle relations
   lists,
+  labels,
 });
 
 const mapRecordToList = (record: RecordModel, cards: Card[] = []): List => ({
@@ -56,52 +57,92 @@ export const useBoards = () => {
     if (!user) return;
 
     setLoading(true);
-    const boardRecords = await pb.collection('boards').getFullList({
-      filter: `user = "${user.id}"`,
-      sort: '-created',
-    });
+    try {
+      const boardRecords = await pb.collection('boards').getFullList({
+        filter: `user = "${user.id}"`,
+        sort: '-created',
+      });
 
-    const fetchedBoards = await Promise.all(
-      boardRecords.map(async (boardRecord) => {
-        const listRecords = await pb.collection('lists').getFullList({
-          filter: `board = "${boardRecord.id}"`,
-          sort: 'position',
-        });
+      const fetchedBoards = await Promise.all(
+        boardRecords.map(async (boardRecord) => {
+          const listRecords = await pb.collection('lists').getFullList({
+            filter: `board = "${boardRecord.id}"`,
+            sort: 'position',
+          });
 
-        const lists = await Promise.all(
-          listRecords.map(async (listRecord) => {
-            const cardRecords = await pb.collection('cards').getFullList({
-              filter: `list = "${listRecord.id}"`,
-              sort: 'position',
-            });
-            const cards = cardRecords.map(mapRecordToCard);
-            return mapRecordToList(listRecord, cards);
-          })
-        );
-        return mapRecordToBoard(boardRecord, lists);
-      })
-    );
+          const lists = await Promise.all(
+            listRecords.map(async (listRecord) => {
+              const cardRecords = await pb.collection('cards').getFullList({
+                filter: `list = "${listRecord.id}"`,
+                sort: 'position',
+              });
+              const cards = cardRecords.map(mapRecordToCard);
+              return mapRecordToList(listRecord, cards);
+            })
+          );
+  
+          const labelRecords = await pb.collection('labels').getFullList({
+            filter: `board = "${boardRecord.id}"`,
+          });
+          const labels = labelRecords.map(mapRecordToLabel);
+  
+          return mapRecordToBoard(boardRecord, lists, labels);
+        })
+      );
+      // Update state with fetched boards
+      console.log("Logging new boards:", fetchedBoards);
 
-    setBoards(fetchedBoards);
-    setLoading(false);
+      setBoards(fetchedBoards);
+    } catch (error) {
+      if (error instanceof ClientResponseError) {
+        if (!error.isAbort) {
+          console.error('Failed to fetch boards:', error);
+        }
+      } else {
+        console.error('An unexpected error occurred:', error);
+      }
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
 
   useEffect(() => {
     fetchBoards();
   }, [fetchBoards]);
 
-  const createBoard = async (title: string, description?: string) => {
-    if (!user) return;
+  const createBoard = async (title: string, description?: string, dueDate?: string) => {
+    if (!user) return null;
 
-    const newBoardRecord = await pb.collection('boards').create({
-      title,
-      description,
-      user: user.id,
-    });
+    try {
+      const newBoardRecord = await pb.collection('boards').create({
+        title,
+        description,
+        user: user.id,
+      });
 
-    const newBoard = mapRecordToBoard(newBoardRecord);
-    setBoards(prev => [newBoard, ...prev]);
-    return newBoard;
+      if (dueDate) {
+        const list = await pb.collection('lists').create({
+          title: 'To Do',
+          board: newBoardRecord.id,
+          position: 0,
+        });
+
+        await pb.collection('cards').create({
+          title: 'New Task',
+          list: list.id,
+          boardId: newBoardRecord.id,
+          position: 0,
+          dueDate,
+        });
+      }
+
+      const newBoard = mapRecordToBoard(newBoardRecord);
+      setBoards(prev => [newBoard, ...prev]);
+      return newBoard;
+    } catch (error) {
+      console.error('Failed to create board:', error);
+      return null;
+    }
   };
 
   const deleteBoard = async (boardId: string) => {
@@ -132,12 +173,12 @@ export const useBoards = () => {
     setBoards(updatedBoards);
   };
 
-  const updateList = async (boardId: string, listId: string, updates: Partial<List>) => {
+  const updateList = async (_boardId: string, listId: string, updates: Partial<List>) => {
     await pb.collection('lists').update(listId, updates);
     fetchBoards(); // Re-fetch to ensure consistency
   };
 
-  const deleteList = async (boardId: string, listId: string) => {
+  const deleteList = async (_boardId: string, listId: string) => {
     await pb.collection('lists').delete(listId);
     fetchBoards(); // Re-fetch to ensure consistency
   };
@@ -167,7 +208,7 @@ export const useBoards = () => {
     setBoards(updatedBoards);
   };
 
-  const updateCard = async (boardId: string, listId: string, cardId: string, updates: Partial<Card>) => {
+  const updateCard = async (_boardId: string, _listId: string, cardId: string, updates: Partial<Card>) => {
     await pb.collection('cards').update(cardId, updates);
     fetchBoards(); // Re-fetch to ensure consistency
   };
@@ -240,10 +281,49 @@ export const useBoards = () => {
     return mapRecordToLabel(newLabelRecord);
   };
 
+  const fetchBoardById = useCallback(async (boardId: string) => {
+    try {
+      const boardRecord = await pb.collection('boards').getOne(boardId);
+      
+      const listRecords = await pb.collection('lists').getFullList({
+        filter: `board = "${boardRecord.id}"`,
+        sort: 'position',
+      });
+
+      const lists = await Promise.all(
+        listRecords.map(async (listRecord) => {
+          const cardRecords = await pb.collection('cards').getFullList({
+            filter: `list = "${listRecord.id}"`,
+            sort: 'position',
+          });
+          const cards = cardRecords.map(mapRecordToCard);
+          return mapRecordToList(listRecord, cards);
+        })
+      );
+
+      const labelRecords = await pb.collection('labels').getFullList({
+        filter: `board = "${boardRecord.id}"`,
+      });
+      const labels = labelRecords.map(mapRecordToLabel);
+
+      return mapRecordToBoard(boardRecord, lists, labels);
+    } catch (error) {
+      if (error instanceof ClientResponseError) {
+        if (!error.isAbort) {
+          console.error('Failed to fetch board:', error);
+        }
+      } else {
+        console.error('An unexpected error occurred while fetching the board:', error);
+      }
+      return null;
+    }
+  }, []);
+
   return {
     boards,
     loading,
     fetchBoards,
+    fetchBoardById,
     createBoard,
     deleteBoard,
     updateBoard,

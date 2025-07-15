@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Card as CardType, Checklist, ChecklistItem, Label } from '../../types';
-import { X, Calendar, User, MessageCircle, CheckSquare, Plus, Trash2, Tag, Repeat } from 'lucide-react';
+import { X, Calendar, User, Repeat, Plus } from 'lucide-react';
 import {DayPicker} from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import { format } from 'date-fns';

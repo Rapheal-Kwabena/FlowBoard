@@ -1,22 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 
 interface CreateBoardModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (title: string, description?: string) => void;
+  onSubmit: (title: string, description?: string, dueDate?: string) => void;
+  selectedDate?: Date | null;
 }
 
-const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ isOpen, onClose, onSubmit }) => {
+const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ isOpen, onClose, onSubmit, selectedDate }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [dueDate, setDueDate] = useState('');
+
+  useEffect(() => {
+    if (selectedDate) {
+      setDueDate(selectedDate.toISOString().split('T')[0]);
+    }
+  }, [selectedDate]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (title.trim()) {
-      onSubmit(title.trim(), description.trim() || undefined);
+      onSubmit(title.trim(), description.trim() || undefined, dueDate || undefined);
       setTitle('');
       setDescription('');
+      setDueDate('');
       onClose();
     }
   };
@@ -64,6 +73,19 @@ const CreateBoardModal: React.FC<CreateBoardModalProps> = ({ isOpen, onClose, on
                 onChange={(e) => setDescription(e.target.value)}
                 placeholder="Enter board description"
                 rows={3}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Due Date
+              </label>
+              <input
+                id="dueDate"
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               />
             </div>

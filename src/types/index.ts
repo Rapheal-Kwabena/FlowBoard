@@ -3,6 +3,9 @@ export interface User {
   email: string;
   name: string;
   avatar?: string;
+  avatarUrl?: string;
+  phone?: string;
+  twoFactor?: boolean;
 }
 
 export interface Board {
@@ -14,6 +17,7 @@ export interface Board {
   lists: List[];
   members: User[];
   activity: Activity[];
+  labels: Label[];
 }
 
 export interface List {
@@ -89,4 +93,5 @@ export interface AuthState {
   user: User | null;
   isAuthenticated: boolean;
   loading: boolean;
+  is2FARequired: boolean;
 }

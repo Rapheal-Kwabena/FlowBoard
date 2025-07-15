@@ -1,23 +1,50 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { DragDropContext, Droppable } from 'react-beautiful-dnd';
+import { DragDropContext } from 'react-beautiful-dnd';
 import { useBoards } from '../hooks/useBoards';
 import Header from '../components/Layout/Header';
 import BoardList from '../components/Board/BoardList';
 import CardModal from '../components/Board/CardModal';
 import { Plus, ArrowLeft } from 'lucide-react';
-import { Card, Label } from '../types';
+import { Card, Board as BoardType } from '../types';
 
 const Board: React.FC = () => {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
-  const { boards, addList, updateList, deleteList, addCard, updateCard, moveCard, addLabel } = useBoards();
+  const { fetchBoardById, addList, updateList, deleteList, addCard, updateCard, moveCard, addLabel } = useBoards();
+  const [board, setBoard] = useState<BoardType | null>(null);
+  const [loading, setLoading] = useState(true);
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
-  const [boardLabels, setBoardLabels] = useState<Label[]>([]);
   const [isAddingList, setIsAddingList] = useState(false);
   const [newListTitle, setNewListTitle] = useState('');
 
-  const board = boards.find(b => b.id === boardId);
+  useEffect(() => {
+    const loadBoard = async () => {
+      if (boardId) {
+        setLoading(true);
+        try {
+          const fetchedBoard = await fetchBoardById(boardId);
+          setBoard(fetchedBoard);
+        } catch (error) {
+          console.error('Failed to fetch board:', error);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadBoard();
+  }, [boardId, fetchBoardById]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Loading board...</h2>
+        </div>
+      </div>
+    );
+  }
 
   if (!board) {
     return (
@@ -160,7 +187,7 @@ const Board: React.FC = () => {
           onClose={() => setSelectedCard(null)}
           onUpdate={handleCardUpdate}
           onAddLabel={addLabel}
-          boardLabels={boardLabels}
+          boardLabels={board.labels}
         />
       )}
     </div>
