@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, AuthState } from '../types';
+import { pb } from '../lib/pocketbase';
+import { RecordModel } from 'pocketbase';
 
 interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<void>;
@@ -17,6 +19,15 @@ export const useAuth = () => {
   return context;
 };
 
+const mapRecordToUser = (record: RecordModel): User => {
+  return {
+    id: record.id,
+    email: record.email,
+    name: record.name,
+    avatar: record.avatar ? pb.getFileUrl(record, record.avatar) : undefined,
+  };
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [authState, setAuthState] = useState<AuthState>({
     user: null,
@@ -25,10 +36,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   useEffect(() => {
-    // Check for stored user data
-    const storedUser = localStorage.getItem('flowboard_user');
+    const storedUser = pb.authStore.model;
     if (storedUser) {
-      const user = JSON.parse(storedUser);
+      const user = mapRecordToUser(storedUser);
       setAuthState({
         user,
         isAuthenticated: true,
@@ -40,17 +50,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (email: string, password: string) => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const user: User = {
-      id: '1',
-      email,
-      name: email.split('@')[0],
-      avatar: `https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=faces`
-    };
-
-    localStorage.setItem('flowboard_user', JSON.stringify(user));
+    const authData = await pb.collection('users').authWithPassword(email, password);
+    const user = mapRecordToUser(authData.record);
     setAuthState({
       user,
       isAuthenticated: true,
@@ -59,27 +60,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signup = async (name: string, email: string, password: string) => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    const user: User = {
-      id: '1',
-      email,
+    const newUser = await pb.collection('users').create({
       name,
-      avatar: `https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=faces`
-    };
-
-    localStorage.setItem('flowboard_user', JSON.stringify(user));
-    setAuthState({
-      user,
-      isAuthenticated: true,
-      loading: false,
+      email,
+      password,
+      passwordConfirm: password,
     });
+    await login(email, password);
   };
 
   const logout = () => {
-    localStorage.removeItem('flowboard_user');
-    localStorage.removeItem('flowboard_boards');
+    pb.authStore.clear();
     setAuthState({
       user: null,
       isAuthenticated: false,

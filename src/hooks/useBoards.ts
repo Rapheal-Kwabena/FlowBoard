@@ -1,283 +1,229 @@
-import { useState, useEffect } from 'react';
-import { Board, List, Card, Activity } from '../types';
+import { useState, useEffect, useCallback } from 'react';
+import { Board, List, Card } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { pb } from '../lib/pocketbase';
+import { RecordModel } from 'pocketbase';
 
-const generateId = () => Math.random().toString(36).substr(2, 9);
+const mapRecordToBoard = (record: RecordModel, lists: List[] = []): Board => ({
+  id: record.id,
+  title: record.title,
+  description: record.description,
+  createdAt: record.created,
+  updatedAt: record.updated,
+  members: [], // This would need more logic to handle relations
+  activity: [], // This would need more logic to handle relations
+  lists,
+});
+
+const mapRecordToList = (record: RecordModel, cards: Card[] = []): List => ({
+  id: record.id,
+  title: record.title,
+  boardId: record.board,
+  position: record.position,
+  cards,
+});
+
+const mapRecordToCard = (record: RecordModel): Card => ({
+  id: record.id,
+  title: record.title,
+  description: record.description,
+  listId: record.list,
+  position: record.position,
+  members: [],
+  checklists: [],
+  comments: [],
+  attachments: [],
+  createdAt: record.created,
+  updatedAt: record.updated,
+});
 
 export const useBoards = () => {
   const { user } = useAuth();
   const [boards, setBoards] = useState<Board[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (user) {
-      const storedBoards = localStorage.getItem('flowboard_boards');
-      if (storedBoards) {
-        setBoards(JSON.parse(storedBoards));
-      } else {
-        // Initialize with sample data
-        const sampleBoards: Board[] = [
-          {
-            id: '1',
-            title: 'My First Board',
-            description: 'Welcome to FlowBoard!',
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            members: [user],
-            activity: [],
-            lists: [
-              {
-                id: '1',
-                title: 'To Do',
-                boardId: '1',
-                position: 0,
-                cards: [
-                  {
-                    id: '1',
-                    title: 'Welcome to FlowBoard',
-                    description: 'This is your first card! Click to edit details.',
-                    listId: '1',
-                    position: 0,
-                    members: [user],
-                    checklists: [],
-                    comments: [],
-                    attachments: [],
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                  }
-                ]
-              },
-              {
-                id: '2',
-                title: 'In Progress',
-                boardId: '1',
-                position: 1,
-                cards: []
-              },
-              {
-                id: '3',
-                title: 'Done',
-                boardId: '1',
-                position: 2,
-                cards: []
-              }
-            ]
-          }
-        ];
-        setBoards(sampleBoards);
-        localStorage.setItem('flowboard_boards', JSON.stringify(sampleBoards));
-      }
-    }
-  }, [user]);
-
-  const saveBoards = (updatedBoards: Board[]) => {
-    setBoards(updatedBoards);
-    localStorage.setItem('flowboard_boards', JSON.stringify(updatedBoards));
-  };
-
-  const createBoard = (title: string, description?: string) => {
+  const fetchBoards = useCallback(async () => {
     if (!user) return;
 
-    const newBoard: Board = {
-      id: generateId(),
+    setLoading(true);
+    const boardRecords = await pb.collection('boards').getFullList({
+      filter: `user = "${user.id}"`,
+      sort: '-created',
+    });
+
+    const fetchedBoards = await Promise.all(
+      boardRecords.map(async (boardRecord) => {
+        const listRecords = await pb.collection('lists').getFullList({
+          filter: `board = "${boardRecord.id}"`,
+          sort: 'position',
+        });
+
+        const lists = await Promise.all(
+          listRecords.map(async (listRecord) => {
+            const cardRecords = await pb.collection('cards').getFullList({
+              filter: `list = "${listRecord.id}"`,
+              sort: 'position',
+            });
+            const cards = cardRecords.map(mapRecordToCard);
+            return mapRecordToList(listRecord, cards);
+          })
+        );
+        return mapRecordToBoard(boardRecord, lists);
+      })
+    );
+
+    setBoards(fetchedBoards);
+    setLoading(false);
+  }, [user]);
+
+  useEffect(() => {
+    fetchBoards();
+  }, [fetchBoards]);
+
+  const createBoard = async (title: string, description?: string) => {
+    if (!user) return;
+
+    const newBoardRecord = await pb.collection('boards').create({
       title,
       description,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      members: [user],
-      activity: [],
-      lists: []
-    };
+      user: user.id,
+    });
 
-    saveBoards([...boards, newBoard]);
+    const newBoard = mapRecordToBoard(newBoardRecord);
+    setBoards(prev => [newBoard, ...prev]);
     return newBoard;
   };
 
-  const deleteBoard = (boardId: string) => {
-    saveBoards(boards.filter(board => board.id !== boardId));
+  const deleteBoard = async (boardId: string) => {
+    await pb.collection('boards').delete(boardId);
+    setBoards(prev => prev.filter(board => board.id !== boardId));
   };
 
-  const updateBoard = (boardId: string, updates: Partial<Board>) => {
-    const updatedBoards = boards.map(board =>
-      board.id === boardId
-        ? { ...board, ...updates, updatedAt: new Date().toISOString() }
-        : board
-    );
-    saveBoards(updatedBoards);
+  const updateBoard = async (boardId: string, updates: Partial<Board>) => {
+    const updatedRecord = await pb.collection('boards').update(boardId, updates);
+    const updatedBoard = mapRecordToBoard(updatedRecord);
+    setBoards(prev => prev.map(b => b.id === boardId ? { ...b, ...updatedBoard } : b));
   };
 
-  const addList = (boardId: string, title: string) => {
-    if (!user) return;
-
+  const addList = async (boardId: string, title: string) => {
     const board = boards.find(b => b.id === boardId);
     if (!board) return;
 
-    const newList: List = {
-      id: generateId(),
+    const newListRecord = await pb.collection('lists').create({
       title,
-      boardId,
+      board: boardId,
       position: board.lists.length,
-      cards: []
-    };
+    });
 
-    const updatedBoard = {
-      ...board,
-      lists: [...board.lists, newList],
-      updatedAt: new Date().toISOString()
-    };
-
-    const updatedBoards = boards.map(b => b.id === boardId ? updatedBoard : b);
-    saveBoards(updatedBoards);
-  };
-
-  const updateList = (boardId: string, listId: string, updates: Partial<List>) => {
-    const updatedBoards = boards.map(board =>
-      board.id === boardId
-        ? {
-            ...board,
-            lists: board.lists.map(list =>
-              list.id === listId ? { ...list, ...updates } : list
-            ),
-            updatedAt: new Date().toISOString()
-          }
-        : board
+    const newList = mapRecordToList(newListRecord);
+    const updatedBoards = boards.map(b =>
+      b.id === boardId ? { ...b, lists: [...b.lists, newList] } : b
     );
-    saveBoards(updatedBoards);
+    setBoards(updatedBoards);
   };
 
-  const deleteList = (boardId: string, listId: string) => {
-    const updatedBoards = boards.map(board =>
-      board.id === boardId
-        ? {
-            ...board,
-            lists: board.lists.filter(list => list.id !== listId),
-            updatedAt: new Date().toISOString()
-          }
-        : board
-    );
-    saveBoards(updatedBoards);
+  const updateList = async (boardId: string, listId: string, updates: Partial<List>) => {
+    await pb.collection('lists').update(listId, updates);
+    fetchBoards(); // Re-fetch to ensure consistency
   };
 
-  const addCard = (boardId: string, listId: string, title: string) => {
-    if (!user) return;
+  const deleteList = async (boardId: string, listId: string) => {
+    await pb.collection('lists').delete(listId);
+    fetchBoards(); // Re-fetch to ensure consistency
+  };
 
+  const addCard = async (boardId: string, listId: string, title: string) => {
     const board = boards.find(b => b.id === boardId);
-    if (!board) return;
-
-    const list = board.lists.find(l => l.id === listId);
+    const list = board?.lists.find(l => l.id === listId);
     if (!list) return;
 
-    const newCard: Card = {
-      id: generateId(),
+    const newCardRecord = await pb.collection('cards').create({
       title,
-      listId,
+      list: listId,
       position: list.cards.length,
-      members: [],
-      checklists: [],
-      comments: [],
-      attachments: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
+    });
 
-    const updatedList = {
-      ...list,
-      cards: [...list.cards, newCard]
-    };
-
-    const updatedBoard = {
-      ...board,
-      lists: board.lists.map(l => l.id === listId ? updatedList : l),
-      updatedAt: new Date().toISOString()
-    };
-
-    const updatedBoards = boards.map(b => b.id === boardId ? updatedBoard : b);
-    saveBoards(updatedBoards);
-  };
-
-  const updateCard = (boardId: string, listId: string, cardId: string, updates: Partial<Card>) => {
-    const updatedBoards = boards.map(board =>
-      board.id === boardId
+    const newCard = mapRecordToCard(newCardRecord);
+    const updatedBoards = boards.map(b =>
+      b.id === boardId
         ? {
-            ...board,
-            lists: board.lists.map(list =>
-              list.id === listId
-                ? {
-                    ...list,
-                    cards: list.cards.map(card =>
-                      card.id === cardId
-                        ? { ...card, ...updates, updatedAt: new Date().toISOString() }
-                        : card
-                    )
-                  }
-                : list
+            ...b,
+            lists: b.lists.map(l =>
+              l.id === listId ? { ...l, cards: [...l.cards, newCard] } : l
             ),
-            updatedAt: new Date().toISOString()
           }
-        : board
+        : b
     );
-    saveBoards(updatedBoards);
+    setBoards(updatedBoards);
   };
 
-  const moveCard = (boardId: string, dragResult: any) => {
+  const updateCard = async (boardId: string, listId: string, cardId: string, updates: Partial<Card>) => {
+    await pb.collection('cards').update(cardId, updates);
+    fetchBoards(); // Re-fetch to ensure consistency
+  };
+
+  const moveCard = async (boardId: string, dragResult: any) => {
     const { destination, source, draggableId } = dragResult;
-    
     if (!destination) return;
-    
-    if (destination.droppableId === source.droppableId && destination.index === source.index) {
-      return;
-    }
 
     const board = boards.find(b => b.id === boardId);
     if (!board) return;
 
     const sourceList = board.lists.find(l => l.id === source.droppableId);
     const destList = board.lists.find(l => l.id === destination.droppableId);
-    
     if (!sourceList || !destList) return;
 
-    const card = sourceList.cards.find(c => c.id === draggableId);
-    if (!card) return;
-
-    let updatedBoard = { ...board };
+    // Optimistic UI update
+    const sourceCards = Array.from(sourceList.cards);
+    const [movedCard] = sourceCards.splice(source.index, 1);
+    
+    let newBoards = [...boards];
 
     if (source.droppableId === destination.droppableId) {
-      // Moving within the same list
-      const updatedCards = Array.from(sourceList.cards);
-      updatedCards.splice(source.index, 1);
-      updatedCards.splice(destination.index, 0, card);
-
-      updatedBoard.lists = board.lists.map(list =>
-        list.id === sourceList.id
-          ? { ...list, cards: updatedCards.map((c, i) => ({ ...c, position: i })) }
-          : list
-      );
+      sourceCards.splice(destination.index, 0, movedCard);
+      newBoards = newBoards.map(b => b.id === boardId ? {
+        ...b,
+        lists: b.lists.map(l => l.id === source.droppableId ? {...l, cards: sourceCards} : l)
+      } : b);
     } else {
-      // Moving between lists
-      const sourceCards = Array.from(sourceList.cards);
       const destCards = Array.from(destList.cards);
-
-      sourceCards.splice(source.index, 1);
-      const updatedCard = { ...card, listId: destination.droppableId };
-      destCards.splice(destination.index, 0, updatedCard);
-
-      updatedBoard.lists = board.lists.map(list => {
-        if (list.id === sourceList.id) {
-          return { ...list, cards: sourceCards.map((c, i) => ({ ...c, position: i })) };
-        }
-        if (list.id === destList.id) {
-          return { ...list, cards: destCards.map((c, i) => ({ ...c, position: i })) };
-        }
-        return list;
-      });
+      destCards.splice(destination.index, 0, movedCard);
+      newBoards = newBoards.map(b => b.id === boardId ? {
+        ...b,
+        lists: b.lists.map(l => {
+          if (l.id === source.droppableId) return {...l, cards: sourceCards};
+          if (l.id === destination.droppableId) return {...l, cards: destCards};
+          return l;
+        })
+      } : b);
     }
+    setBoards(newBoards);
 
-    updatedBoard.updatedAt = new Date().toISOString();
-    const updatedBoards = boards.map(b => b.id === boardId ? updatedBoard : b);
-    saveBoards(updatedBoards);
+    // Update backend
+    try {
+      if (source.droppableId === destination.droppableId) {
+        // Reorder within the same list
+        await pb.collection('cards').update(draggableId, { position: destination.index });
+      } else {
+        // Move to a new list
+        await pb.collection('cards').update(draggableId, {
+          list: destination.droppableId,
+          position: destination.index,
+        });
+      }
+      // Optionally re-fetch to ensure data consistency
+      await fetchBoards();
+    } catch (error) {
+      console.error("Failed to move card:", error);
+      // Revert optimistic update on error
+      fetchBoards();
+    }
   };
 
   return {
     boards,
+    loading,
+    fetchBoards,
     createBoard,
     deleteBoard,
     updateBoard,

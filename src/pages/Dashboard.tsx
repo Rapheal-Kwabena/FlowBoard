@@ -9,15 +9,54 @@ import { Plus, Trello } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  const { boards, createBoard, deleteBoard } = useBoards();
+  const { boards, createBoard, deleteBoard, loading } = useBoards();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const navigate = useNavigate();
 
-  const handleCreateBoard = (title: string, description?: string) => {
-    const board = createBoard(title, description);
+  const handleCreateBoard = async (title: string, description?: string) => {
+    const board = await createBoard(title, description);
     if (board) {
       navigate(`/board/${board.id}`);
     }
+  };
+
+  const renderContent = () => {
+    if (loading) {
+      return <div className="text-center py-16">Loading boards...</div>;
+    }
+
+    if (boards.length > 0) {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {boards.map((board) => (
+            <BoardCard
+              key={board.id}
+              board={board}
+              onDelete={() => deleteBoard(board.id)}
+            />
+          ))}
+        </div>
+      );
+    }
+
+    return (
+      <div className="text-center py-16">
+        <Trello className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+        <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">
+          No boards yet
+        </h3>
+        <p className="text-gray-600 dark:text-gray-400 mb-6">
+          Create your first board to get started with task management.
+        </p>
+        <button
+          onClick={() => setIsCreateModalOpen(true)}
+          className="inline-flex items-center space-x-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+        >
+          <Plus className="w-5 h-5" />
+          <span>Create Your First Board</span>
+        </button>
+      </div>
+    );
   };
 
   return (
@@ -47,34 +86,7 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {boards.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {boards.map((board) => (
-              <BoardCard
-                key={board.id}
-                board={board}
-                onDelete={deleteBoard}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-16">
-            <Trello className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">
-              No boards yet
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Create your first board to get started with task management.
-            </p>
-            <button
-              onClick={() => setIsCreateModalOpen(true)}
-              className="inline-flex items-center space-x-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-            >
-              <Plus className="w-5 h-5" />
-              <span>Create Your First Board</span>
-            </button>
-          </div>
-        )}
+        {renderContent()}
       </main>
 
       <CreateBoardModal

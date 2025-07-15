@@ -1,0 +1,13 @@
+{
+  "name": "flowboard-server",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "pocketbase": "^0.21.1"
+  },
+  "type": "module"
+}
