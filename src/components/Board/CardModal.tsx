@@ -1,27 +1,46 @@
-import React, { useState } from 'react';
-import { Card as CardType, Checklist, ChecklistItem } from '../../types';
-import { X, Calendar, User, MessageCircle, CheckSquare, Plus, Trash2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Card as CardType, Checklist, ChecklistItem, Label } from '../../types';
+import { X, Calendar, User, MessageCircle, CheckSquare, Plus, Trash2, Tag, Repeat } from 'lucide-react';
+import {DayPicker} from 'react-day-picker';
+import 'react-day-picker/dist/style.css';
+import { format } from 'date-fns';
+import Confetti from 'react-confetti';
+import LabelManager from './LabelManager';
 
 interface CardModalProps {
   card: CardType;
   isOpen: boolean;
   onClose: () => void;
   onUpdate: (updates: Partial<CardType>) => void;
+  onAddLabel: (boardId: string, name: string, color: string) => Promise<Label | undefined>;
+  boardLabels: Label[];
 }
 
-const CardModal: React.FC<CardModalProps> = ({ card, isOpen, onClose, onUpdate }) => {
+const CardModal: React.FC<CardModalProps> = ({ card, isOpen, onClose, onUpdate, onAddLabel, boardLabels }) => {
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description || '');
-  const [dueDate, setDueDate] = useState(card.dueDate || '');
+  const [dueDate, setDueDate] = useState<Date | undefined>(card.dueDate ? new Date(card.dueDate) : undefined);
+  const [recurrenceRule, setRecurrenceRule] = useState(card.recurrenceRule || 'none');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+
   const [newComment, setNewComment] = useState('');
   const [newChecklistTitle, setNewChecklistTitle] = useState('');
   const [showNewChecklist, setShowNewChecklist] = useState(false);
+
+  useEffect(() => {
+    if (card.checklists.every(c => c.items.every(i => i.completed)) && card.checklists.length > 0) {
+      setShowConfetti(true);
+      setTimeout(() => setShowConfetti(false), 5000);
+    }
+  }, [card.checklists]);
 
   const handleSave = () => {
     onUpdate({
       title,
       description: description || undefined,
-      dueDate: dueDate || undefined,
+      dueDate: dueDate?.toISOString(),
+      recurrenceRule,
     });
   };
 
@@ -97,6 +116,7 @@ const CardModal: React.FC<CardModalProps> = ({ card, isOpen, onClose, onUpdate }
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      {showConfetti && <Confetti />}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
           <input
@@ -131,17 +151,70 @@ const CardModal: React.FC<CardModalProps> = ({ card, isOpen, onClose, onUpdate }
               />
             </div>
 
-            {/* Due Date */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Due Date */}
+              <div className="relative">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Due Date
+                </label>
+                <button
+                  onClick={() => setShowDatePicker(!showDatePicker)}
+                  className="w-full flex items-center justify-between px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                >
+                  <span>{dueDate ? format(dueDate, 'PPP') : 'Select a date'}</span>
+                  <Calendar className="w-4 h-4 text-gray-500" />
+                </button>
+                {showDatePicker && (
+                  <div className="absolute z-10 mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
+                    <DayPicker
+                      mode="single"
+                      selected={dueDate}
+                      onSelect={(date: Date | undefined) => {
+                        setDueDate(date);
+                        setShowDatePicker(false);
+                        handleSave();
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Recurrence */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Recurrence
+                </label>
+                <div className="relative">
+                  <select
+                    value={recurrenceRule}
+                    onChange={(e) => setRecurrenceRule(e.target.value)}
+                    onBlur={handleSave}
+                    className="w-full appearance-none px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  >
+                    <option value="none">None</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                  <Repeat className="w-4 h-4 absolute right-3 top-3 text-gray-500 pointer-events-none" />
+                </div>
+              </div>
+            </div>
+
+            {/* Labels */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Due Date
-              </label>
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                onBlur={handleSave}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Labels</h3>
+              <LabelManager
+                boardId={card.boardId}
+                availableLabels={boardLabels}
+                selectedLabels={card.labels || []}
+                onAddLabel={onAddLabel}
+                onToggleLabel={(labelId: string) => {
+                  const updatedLabels = card.labels?.includes(labelId)
+                    ? card.labels.filter((id) => id !== labelId)
+                    : [...(card.labels || []), labelId];
+                  onUpdate({ labels: updatedLabels });
+                }}
               />
             </div>
 

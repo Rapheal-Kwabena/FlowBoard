@@ -6,6 +6,7 @@ import Header from '../components/Layout/Header';
 import BoardCard from '../components/Dashboard/BoardCard';
 import CreateBoardModal from '../components/Dashboard/CreateBoardModal';
 import { Plus, Trello } from 'lucide-react';
+import AnimatedButton from '../components/Layout/AnimatedButton';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -48,13 +49,13 @@ const Dashboard: React.FC = () => {
         <p className="text-gray-600 dark:text-gray-400 mb-6">
           Create your first board to get started with task management.
         </p>
-        <button
+        <AnimatedButton
           onClick={() => setIsCreateModalOpen(true)}
           className="inline-flex items-center space-x-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
         >
           <Plus className="w-5 h-5" />
           <span>Create Your First Board</span>
-        </button>
+        </AnimatedButton>
       </div>
     );
   };
@@ -76,13 +77,13 @@ const Dashboard: React.FC = () => {
         <div className="mb-6">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Your Boards</h2>
-            <button
+            <AnimatedButton
               onClick={() => setIsCreateModalOpen(true)}
               className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
             >
               <Plus className="w-4 h-4" />
               <span>Create Board</span>
-            </button>
+            </AnimatedButton>
           </div>
         </div>
 

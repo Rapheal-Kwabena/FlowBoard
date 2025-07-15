@@ -2,14 +2,24 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Trello, Mail, Lock } from 'lucide-react';
+import AnimatedButton from '../Layout/AnimatedButton';
 
 const LoginForm: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const { login } = useAuth();
+  const { login, loginWithProvider } = useAuth();
   const navigate = useNavigate();
+
+  const handleProviderLogin = async (provider: 'google' | 'microsoft') => {
+    try {
+      await loginWithProvider(provider);
+      navigate('/dashboard');
+    } catch (err) {
+      setError('Failed to login with provider');
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,13 +90,41 @@ const LoginForm: React.FC = () => {
                 <div className="text-red-600 dark:text-red-400 text-sm text-center">{error}</div>
               )}
 
-              <button
+              <AnimatedButton
                 type="submit"
                 disabled={loading}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Signing in...' : 'Sign in'}
-              </button>
+              </AnimatedButton>
+
+              <div className="relative my-4">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300 dark:border-gray-600" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400">
+                    Or continue with
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <AnimatedButton
+                  onClick={() => handleProviderLogin('google')}
+                  className="w-full flex items-center justify-center py-3 px-4 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  <img src="/google.svg" alt="Google" className="w-5 h-5 mr-2" />
+                  Google
+                </AnimatedButton>
+                <AnimatedButton
+                  onClick={() => handleProviderLogin('microsoft')}
+                  className="w-full flex items-center justify-center py-3 px-4 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  <img src="/microsoft.svg" alt="Microsoft" className="w-5 h-5 mr-2" />
+                  Microsoft
+                </AnimatedButton>
+              </div>
             </div>
 
             <div className="mt-6 text-center">

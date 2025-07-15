@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { Trello, Mail, Lock, User } from 'lucide-react';
+import AnimatedButton from '../Layout/AnimatedButton';
 
 const SignupForm: React.FC = () => {
   const [name, setName] = useState('');
@@ -99,13 +100,13 @@ const SignupForm: React.FC = () => {
                 <div className="text-red-600 dark:text-red-400 text-sm text-center">{error}</div>
               )}
 
-              <button
+              <AnimatedButton
                 type="submit"
                 disabled={loading}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Creating account...' : 'Create account'}
-              </button>
+              </AnimatedButton>
             </div>
 
             <div className="mt-6 text-center">

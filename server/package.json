@@ -6,8 +6,12 @@
     "start": "node server.mjs"
   },
   "dependencies": {
+    "date-fns": "^4.1.0",
     "express": "^5.1.0",
-    "pocketbase": "^0.21.1"
+    "framer-motion": "^12.23.6",
+    "pocketbase": "^0.21.1",
+    "react-confetti": "^6.4.0",
+    "react-day-picker": "^9.8.0"
   },
   "type": "module"
 }

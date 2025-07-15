@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Board, List, Card } from '../types';
+import { Board, List, Card, Label } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { pb } from '../lib/pocketbase';
 import { RecordModel } from 'pocketbase';
@@ -28,6 +28,7 @@ const mapRecordToCard = (record: RecordModel): Card => ({
   title: record.title,
   description: record.description,
   listId: record.list,
+  boardId: record.board,
   position: record.position,
   members: [],
   checklists: [],
@@ -35,6 +36,15 @@ const mapRecordToCard = (record: RecordModel): Card => ({
   attachments: [],
   createdAt: record.created,
   updatedAt: record.updated,
+  recurrenceRule: record.recurrenceRule,
+  labels: record.labels,
+});
+
+const mapRecordToLabel = (record: RecordModel): Label => ({
+  id: record.id,
+  name: record.name,
+  color: record.color,
+  boardId: record.board,
 });
 
 export const useBoards = () => {
@@ -220,6 +230,16 @@ export const useBoards = () => {
     }
   };
 
+  const addLabel = async (boardId: string, name: string, color: string) => {
+    const newLabelRecord = await pb.collection('labels').create({
+      board: boardId,
+      name,
+      color,
+    });
+    fetchBoards(); // Re-fetch to ensure consistency
+    return mapRecordToLabel(newLabelRecord);
+  };
+
   return {
     boards,
     loading,
@@ -233,5 +253,6 @@ export const useBoards = () => {
     addCard,
     updateCard,
     moveCard,
+    addLabel,
   };
 };

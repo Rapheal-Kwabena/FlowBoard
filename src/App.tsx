@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
@@ -8,6 +8,65 @@ import SignupForm from './components/Auth/SignupForm';
 import Dashboard from './pages/Dashboard';
 import Board from './pages/Board';
 import Settings from './pages/Settings';
+import { AnimatePresence } from 'framer-motion';
+import AnimatedPage from './components/Layout/AnimatedPage';
+
+const AppRoutes = () => {
+  const location = useLocation();
+  return (
+    <AnimatePresence mode="wait">
+      <Routes location={location} key={location.pathname}>
+        <Route
+          path="/login"
+          element={
+            <AnimatedPage>
+              <LoginForm />
+            </AnimatedPage>
+          }
+        />
+        <Route
+          path="/signup"
+          element={
+            <AnimatedPage>
+              <SignupForm />
+            </AnimatedPage>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <AnimatedPage>
+                <Dashboard />
+              </AnimatedPage>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/board/:boardId"
+          element={
+            <ProtectedRoute>
+              <AnimatedPage>
+                <Board />
+              </AnimatedPage>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <AnimatedPage>
+                <Settings />
+              </AnimatedPage>
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </AnimatePresence>
+  );
+};
 
 function App() {
   return (
@@ -15,35 +74,7 @@ function App() {
       <AuthProvider>
         <Router>
           <div className="App">
-            <Routes>
-              <Route path="/login" element={<LoginForm />} />
-              <Route path="/signup" element={<SignupForm />} />
-              <Route
-                path="/dashboard"
-                element={
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/board/:boardId"
-                element={
-                  <ProtectedRoute>
-                    <Board />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/settings"
-                element={
-                  <ProtectedRoute>
-                    <Settings />
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
+            <AppRoutes />
           </div>
         </Router>
       </AuthProvider>

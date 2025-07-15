@@ -29,14 +29,24 @@ export interface Card {
   title: string;
   description?: string;
   listId: string;
+  boardId: string;
   position: number;
   dueDate?: string;
+  recurrenceRule?: string;
+  labels?: string[];
   members: User[];
   checklists: Checklist[];
   comments: Comment[];
   attachments: Attachment[];
   createdAt: string;
   updatedAt: string;
+}
+
+export interface Label {
+  id: string;
+  name: string;
+  color: string;
+  boardId: string;
 }
 
 export interface Checklist {

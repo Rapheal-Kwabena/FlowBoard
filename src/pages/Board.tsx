@@ -6,13 +6,14 @@ import Header from '../components/Layout/Header';
 import BoardList from '../components/Board/BoardList';
 import CardModal from '../components/Board/CardModal';
 import { Plus, ArrowLeft } from 'lucide-react';
-import { Card } from '../types';
+import { Card, Label } from '../types';
 
 const Board: React.FC = () => {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
-  const { boards, addList, updateList, deleteList, addCard, updateCard, moveCard } = useBoards();
+  const { boards, addList, updateList, deleteList, addCard, updateCard, moveCard, addLabel } = useBoards();
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
+  const [boardLabels, setBoardLabels] = useState<Label[]>([]);
   const [isAddingList, setIsAddingList] = useState(false);
   const [newListTitle, setNewListTitle] = useState('');
 
@@ -158,6 +159,8 @@ const Board: React.FC = () => {
           isOpen={!!selectedCard}
           onClose={() => setSelectedCard(null)}
           onUpdate={handleCardUpdate}
+          onAddLabel={addLabel}
+          boardLabels={boardLabels}
         />
       )}
     </div>
