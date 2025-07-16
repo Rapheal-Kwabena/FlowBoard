@@ -142,12 +142,6 @@ const LoginForm: React.FC = () => {
                     </Link>
                   </p>
                 </div>
-
-                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                  <p className="text-xs text-blue-800 dark:text-blue-200 text-center">
-                    Demo: Use any email and password to sign in
-                  </p>
-                </div>
               </div>
             </form>
           </>

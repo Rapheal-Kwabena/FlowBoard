@@ -1,7 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { DragDropContext } from 'react-beautiful-dnd';
-import { useBoards } from '../hooks/useBoards';
+import {
+  useBoard,
+  useAddList,
+  useAddCard,
+  useUpdateBoard,
+  useMoveCard,
+  useUpdateCard,
+  useUpdateList,
+  useDeleteList,
+  useCreateLabel
+} from '../hooks/useBoardsQuery';
 import Header from '../components/Layout/Header';
 import BoardList from '../components/Board/BoardList';
 import CardModal from '../components/Board/CardModal';
@@ -11,32 +21,23 @@ import { Card, Board as BoardType } from '../types';
 const Board: React.FC = () => {
   const { boardId } = useParams<{ boardId: string }>();
   const navigate = useNavigate();
-  const { fetchBoardById, addList, updateList, deleteList, addCard, updateCard, moveCard, addLabel } = useBoards();
-  const [board, setBoard] = useState<BoardType | null>(null);
-  const [loading, setLoading] = useState(true);
+  
+  // React Query hooks
+  const { data: board, isLoading, error, isError } = useBoard(boardId || '');
+  const addListMutation = useAddList();
+  const addCardMutation = useAddCard();
+  const moveCardMutation = useMoveCard();
+  const updateCardMutation = useUpdateCard();
+  const updateListMutation = useUpdateList();
+  const deleteListMutation = useDeleteList();
+  const createLabelMutation = useCreateLabel();
+  
+  // Local state
   const [selectedCard, setSelectedCard] = useState<Card | null>(null);
   const [isAddingList, setIsAddingList] = useState(false);
   const [newListTitle, setNewListTitle] = useState('');
 
-  useEffect(() => {
-    const loadBoard = async () => {
-      if (boardId) {
-        setLoading(true);
-        try {
-          const fetchedBoard = await fetchBoardById(boardId);
-          setBoard(fetchedBoard);
-        } catch (error) {
-          console.error('Failed to fetch board:', error);
-        } finally {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadBoard();
-  }, [boardId, fetchBoardById]);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
@@ -46,11 +47,13 @@ const Board: React.FC = () => {
     );
   }
 
-  if (!board) {
+  if (isError || !board) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Board not found</h2>
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
+            {error?.message || 'Board not found'}
+          </h2>
           <button
             onClick={() => navigate('/dashboard')}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
@@ -64,15 +67,27 @@ const Board: React.FC = () => {
 
   const handleAddList = (e: React.FormEvent) => {
     e.preventDefault();
-    if (newListTitle.trim()) {
-      addList(board.id, newListTitle.trim());
+    if (newListTitle.trim() && board) {
+      addListMutation.mutate({
+        boardId: board.id,
+        title: newListTitle.trim()
+      });
       setNewListTitle('');
       setIsAddingList(false);
     }
   };
 
   const handleDragEnd = (result: any) => {
-    moveCard(board.id, result);
+    const { destination, source, draggableId } = result;
+    if (!destination || !board) return;
+
+    moveCardMutation.mutate({
+      boardId: board.id,
+      cardId: draggableId,
+      sourceListId: source.droppableId,
+      destinationListId: destination.droppableId,
+      destinationIndex: destination.index,
+    });
   };
 
   const handleCardClick = (card: Card) => {
@@ -80,9 +95,57 @@ const Board: React.FC = () => {
   };
 
   const handleCardUpdate = (updates: Partial<Card>) => {
-    if (selectedCard) {
-      updateCard(board.id, selectedCard.listId, selectedCard.id, updates);
+    if (selectedCard && board) {
+      updateCardMutation.mutate({
+        cardId: selectedCard.id,
+        boardId: board.id,
+        updates,
+      });
+      // Update local state for immediate UI feedback
       setSelectedCard({ ...selectedCard, ...updates });
+    }
+  };
+
+  const handleAddCard = (listId: string, title: string) => {
+    if (board) {
+      addCardMutation.mutate({
+        boardId: board.id,
+        listId,
+        title,
+      });
+    }
+  };
+
+  const handleUpdateList = (listId: string, title: string) => {
+    if (board) {
+      updateListMutation.mutate({
+        listId,
+        boardId: board.id,
+        updates: { title },
+      });
+    }
+  };
+
+  const handleDeleteList = (listId: string) => {
+    if (board) {
+      deleteListMutation.mutate({
+        listId,
+        boardId: board.id,
+      });
+    }
+  };
+
+  const handleAddLabel = async (boardId: string, name: string, color: string) => {
+    try {
+      const result = await createLabelMutation.mutateAsync({
+        boardId,
+        name,
+        color,
+      });
+      return result;
+    } catch (error) {
+      console.error('Failed to create label:', error);
+      return undefined;
     }
   };
 
@@ -127,9 +190,9 @@ const Board: React.FC = () => {
                 <BoardList
                   key={list.id}
                   list={list}
-                  onAddCard={(listId, title) => addCard(board.id, listId, title)}
-                  onUpdateList={(listId, title) => updateList(board.id, listId, { title })}
-                  onDeleteList={(listId) => deleteList(board.id, listId)}
+                  onAddCard={handleAddCard}
+                  onUpdateList={handleUpdateList}
+                  onDeleteList={handleDeleteList}
                   onCardClick={handleCardClick}
                 />
               ))}
@@ -186,7 +249,7 @@ const Board: React.FC = () => {
           isOpen={!!selectedCard}
           onClose={() => setSelectedCard(null)}
           onUpdate={handleCardUpdate}
-          onAddLabel={addLabel}
+          onAddLabel={handleAddLabel}
           boardLabels={board.labels}
         />
       )}

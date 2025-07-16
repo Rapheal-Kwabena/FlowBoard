@@ -1,4 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
@@ -10,6 +12,24 @@ import Settings from './pages/Settings';
 import { AnimatePresence } from 'framer-motion';
 import AnimatedPage from './components/Layout/AnimatedPage';
 import { Toaster } from 'react-hot-toast';
+
+// Create a client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      gcTime: 1000 * 60 * 10, // 10 minutes (formerly cacheTime)
+      retry: (failureCount, error) => {
+        // Don't retry on 4xx errors
+        if (error && typeof error === 'object' && 'status' in error) {
+          const status = (error as any).status;
+          if (status >= 400 && status < 500) return false;
+        }
+        return failureCount < 3;
+      },
+    },
+  },
+});
 
 const AppRoutes = () => {
   const location = useLocation();
@@ -70,16 +90,19 @@ const AppRoutes = () => {
 
 function App() {
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <Router>
-          <div className="App">
-            <Toaster />
-            <AppRoutes />
-          </div>
-        </Router>
-      </AuthProvider>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <AuthProvider>
+          <Router>
+            <div className="App">
+              <Toaster />
+              <AppRoutes />
+            </div>
+          </Router>
+        </AuthProvider>
+      </ThemeProvider>
+      <ReactQueryDevtools initialIsOpen={false} />
+    </QueryClientProvider>
   );
 }
 

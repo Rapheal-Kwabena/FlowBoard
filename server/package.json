@@ -1,17 +1,26 @@
 {
-  "name": "flowboard-server",
+  "name": "flowboard-pocketbase-setup",
   "version": "1.0.0",
-  "private": true,
+  "description": "PocketBase setup automation for FlowBoard application",
+  "type": "module",
+  "main": "setup-collections.js",
   "scripts": {
+    "setup": "node setup-collections.js",
+    "complete-setup": "node complete-setup.js",
+    "test-admin": "node test-admin.js",
+    "verify": "node verify-setup.js",
     "start": "node server.mjs"
   },
   "dependencies": {
-    "date-fns": "^4.1.0",
-    "express": "^5.1.0",
-    "framer-motion": "^12.23.6",
     "pocketbase": "^0.21.1",
-    "react-confetti": "^6.4.0",
-    "react-day-picker": "^9.8.0"
+    "express": "^4.18.2"
   },
-  "type": "module"
+  "keywords": [
+    "pocketbase",
+    "flowboard",
+    "automation",
+    "setup"
+  ],
+  "author": "FlowBoard Team",
+  "license": "MIT"
 }
