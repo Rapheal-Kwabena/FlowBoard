@@ -99,14 +99,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const loginWithProvider = async (provider: 'google' | 'microsoft') => {
-    const authData = await pb.collection('users').authWithOAuth2({ provider });
-    const user = mapRecordToUser(authData.record);
-    setAuthState({
-      user,
-      isAuthenticated: true,
-      loading: false,
-      is2FARequired: false,
-    });
+    try {
+      setAuthState(prev => ({ ...prev, loading: true }));
+      const authData = await pb.collection('users').authWithOAuth2({ provider });
+      const user = mapRecordToUser(authData.record);
+      setAuthState({
+        user,
+        isAuthenticated: true,
+        loading: false,
+        is2FARequired: false,
+      });
+    } catch (error: any) {
+      setAuthState(prev => ({ ...prev, loading: false }));
+      console.error(`OAuth ${provider} login failed:`, error);
+      throw new Error(`Failed to authenticate with ${provider}. Please try again.`);
+    }
   };
 
   const verify2FA = async (otp: string) => {

@@ -9,16 +9,21 @@ const LoginForm: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [oauthLoading, setOauthLoading] = useState<string | null>(null);
   const [error, setError] = useState('');
-  const { login, loginWithProvider, is2FARequired } = useAuth();
+  const { login, loginWithProvider, is2FARequired, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const handleProviderLogin = async (provider: 'google' | 'microsoft') => {
     try {
+      setOauthLoading(provider);
+      setError('');
       await loginWithProvider(provider);
       navigate('/dashboard');
-    } catch (err) {
-      setError('Failed to login with provider');
+    } catch (err: any) {
+      setError(err.message || `Failed to login with ${provider}`);
+    } finally {
+      setOauthLoading(null);
     }
   };
 
@@ -119,17 +124,27 @@ const LoginForm: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <AnimatedButton
                       onClick={() => handleProviderLogin('google')}
-                      className="w-full flex items-center justify-center py-3 px-4 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                      disabled={oauthLoading !== null || authLoading}
+                      className="w-full flex items-center justify-center py-3 px-4 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <img src="/google.svg" alt="Google" className="w-5 h-5 mr-2" />
-                      Google
+                      {oauthLoading === 'google' ? (
+                        <div className="w-5 h-5 mr-2 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
+                      ) : (
+                        <img src="/google.svg" alt="Google" className="w-5 h-5 mr-2" />
+                      )}
+                      {oauthLoading === 'google' ? 'Connecting...' : 'Google'}
                     </AnimatedButton>
                     <AnimatedButton
                       onClick={() => handleProviderLogin('microsoft')}
-                      className="w-full flex items-center justify-center py-3 px-4 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700"
+                      disabled={oauthLoading !== null || authLoading}
+                      className="w-full flex items-center justify-center py-3 px-4 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <img src="/microsoft.svg" alt="Microsoft" className="w-5 h-5 mr-2" />
-                      Microsoft
+                      {oauthLoading === 'microsoft' ? (
+                        <div className="w-5 h-5 mr-2 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin"></div>
+                      ) : (
+                        <img src="/microsoft.svg" alt="Microsoft" className="w-5 h-5 mr-2" />
+                      )}
+                      {oauthLoading === 'microsoft' ? 'Connecting...' : 'Microsoft'}
                     </AnimatedButton>
                   </div>
                 </div>

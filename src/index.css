@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 body{
-    font-weight: Inter, sans-serif;
+    font-weight: "Inter", sans-serif;
 }
 
 @keyframes pulse {

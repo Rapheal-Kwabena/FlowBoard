@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useBoards } from '../hooks/useBoards';
+import { useBoards, useCreateBoard, useDeleteBoard } from '../hooks/useBoardsQuery';
 import { useAuth } from '../contexts/AuthContext';
 import Header from '../components/Layout/Header';
 import BoardCard from '../components/Dashboard/BoardCard';
@@ -12,14 +12,16 @@ import toast from "react-hot-toast"
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
-  const { boards, createBoard, deleteBoard, loading } = useBoards();
+  const { data: boards = [], isLoading: loading } = useBoards();
+  const createBoardMutation = useCreateBoard();
+  const deleteBoardMutation = useDeleteBoard();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const navigate = useNavigate();
 
   const handleCreateBoard = async (title: string, description?: string) => {
     toast.promise(
-      createBoard(title, description),
+      createBoardMutation.mutateAsync({ title, description }),
       {
         loading: 'Creating board...',
         success: 'Board created!',
@@ -30,6 +32,17 @@ const Dashboard: React.FC = () => {
         navigate(`/board/${board.id}`);
       }
     });
+  };
+
+  const handleDeleteBoard = async (boardId: string) => {
+    toast.promise(
+      deleteBoardMutation.mutateAsync(boardId),
+      {
+        loading: 'Deleting board...',
+        success: 'Board deleted!',
+        error: 'Failed to delete board.',
+      }
+    );
   };
 
   const renderContent = () => {
@@ -45,7 +58,7 @@ const Dashboard: React.FC = () => {
             <BoardCard
               key={board.id}
               board={board}
-              onDelete={() => deleteBoard(board.id)}
+              onDelete={() => handleDeleteBoard(board.id)}
             />
           ))}
         </div>

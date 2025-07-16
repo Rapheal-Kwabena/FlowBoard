@@ -59,68 +59,122 @@ export const boardKeys = {
   detail: (id: string) => [...boardKeys.details(), id] as const,
 };
 
-// Fetch functions
+// Fetch functions with auto-cancellation handling
 const fetchBoards = async (userId: string): Promise<Board[]> => {
-  const boardRecords = await pb.collection('boards').getFullList({
-    filter: `user = "${userId}"`,
-    sort: '-created',
-  });
+  try {
+    const boardRecords = await pb.collection('boards').getFullList({
+      filter: `user = "${userId}"`,
+      sort: '-created',
+      requestKey: `boards-${userId}`, // Add request key to prevent auto-cancellation
+    });
 
-  const fetchedBoards = await Promise.all(
-    boardRecords.map(async (boardRecord) => {
-      const listRecords = await pb.collection('lists').getFullList({
-        filter: `board = "${boardRecord.id}"`,
-        sort: 'position',
-      });
-
-      const lists = await Promise.all(
-        listRecords.map(async (listRecord) => {
-          const cardRecords = await pb.collection('cards').getFullList({
-            filter: `list = "${listRecord.id}"`,
+    const fetchedBoards = await Promise.all(
+      boardRecords.map(async (boardRecord) => {
+        try {
+          const listRecords = await pb.collection('lists').getFullList({
+            filter: `board = "${boardRecord.id}"`,
             sort: 'position',
+            requestKey: `lists-${boardRecord.id}`,
           });
-          const cards = cardRecords.map(mapRecordToCard);
-          return mapRecordToList(listRecord, cards);
-        })
-      );
 
-      const labelRecords = await pb.collection('labels').getFullList({
-        filter: `board = "${boardRecord.id}"`,
-      });
-      const labels = labelRecords.map(mapRecordToLabel);
+          const lists = await Promise.all(
+            listRecords.map(async (listRecord) => {
+              try {
+                const cardRecords = await pb.collection('cards').getFullList({
+                  filter: `list = "${listRecord.id}"`,
+                  sort: 'position',
+                  requestKey: `cards-${listRecord.id}`,
+                });
+                const cards = cardRecords.map(mapRecordToCard);
+                return mapRecordToList(listRecord, cards);
+              } catch (error: any) {
+                // Handle auto-cancellation gracefully
+                if (error?.isAbort || error?.message?.includes('autocancelled')) {
+                  console.warn(`Cards request for list ${listRecord.id} was cancelled, returning empty array`);
+                  return mapRecordToList(listRecord, []);
+                }
+                throw error;
+              }
+            })
+          );
 
-      return mapRecordToBoard(boardRecord, lists, labels);
-    })
-  );
+          const labelRecords = await pb.collection('labels').getFullList({
+            filter: `board = "${boardRecord.id}"`,
+            requestKey: `labels-${boardRecord.id}`,
+          });
+          const labels = labelRecords.map(mapRecordToLabel);
 
-  return fetchedBoards;
+          return mapRecordToBoard(boardRecord, lists, labels);
+        } catch (error: any) {
+          // Handle auto-cancellation gracefully
+          if (error?.isAbort || error?.message?.includes('autocancelled')) {
+            console.warn(`Board details request for ${boardRecord.id} was cancelled, returning basic board`);
+            return mapRecordToBoard(boardRecord, [], []);
+          }
+          throw error;
+        }
+      })
+    );
+
+    return fetchedBoards;
+  } catch (error: any) {
+    // Handle auto-cancellation gracefully
+    if (error?.isAbort || error?.message?.includes('autocancelled')) {
+      console.warn('Boards request was cancelled, returning empty array');
+      return [];
+    }
+    throw error;
+  }
 };
 
 const fetchBoardById = async (boardId: string): Promise<Board> => {
-  const boardRecord = await pb.collection('boards').getOne(boardId);
-  
-  const listRecords = await pb.collection('lists').getFullList({
-    filter: `board = "${boardRecord.id}"`,
-    sort: 'position',
-  });
+  try {
+    const boardRecord = await pb.collection('boards').getOne(boardId, {
+      requestKey: `board-${boardId}`,
+    });
+    
+    const listRecords = await pb.collection('lists').getFullList({
+      filter: `board = "${boardRecord.id}"`,
+      sort: 'position',
+      requestKey: `board-lists-${boardId}`,
+    });
 
-  const lists = await Promise.all(
-    listRecords.map(async (listRecord) => {
-      const cardRecords = await pb.collection('cards').getFullList({
-        filter: `list = "${listRecord.id}"`,
-        sort: 'position',
-      });
-      const cards = cardRecords.map(mapRecordToCard);
-      return mapRecordToList(listRecord, cards);
-    })
-  );
+    const lists = await Promise.all(
+      listRecords.map(async (listRecord) => {
+        try {
+          const cardRecords = await pb.collection('cards').getFullList({
+            filter: `list = "${listRecord.id}"`,
+            sort: 'position',
+            requestKey: `board-cards-${listRecord.id}`,
+          });
+          const cards = cardRecords.map(mapRecordToCard);
+          return mapRecordToList(listRecord, cards);
+        } catch (error: any) {
+          // Handle auto-cancellation gracefully
+          if (error?.isAbort || error?.message?.includes('autocancelled')) {
+            console.warn(`Cards request for list ${listRecord.id} was cancelled, returning empty array`);
+            return mapRecordToList(listRecord, []);
+          }
+          throw error;
+        }
+      })
+    );
 
-  const labelRecords = await pb.collection('labels').getFullList({
-    filter: `board = "${boardRecord.id}"`,
-  });
-  const labels = labelRecords.map(mapRecordToLabel);
+    const labelRecords = await pb.collection('labels').getFullList({
+      filter: `board = "${boardRecord.id}"`,
+      requestKey: `board-labels-${boardId}`,
+    });
+    const labels = labelRecords.map(mapRecordToLabel);
 
-  return mapRecordToBoard(boardRecord, lists, labels);
+    return mapRecordToBoard(boardRecord, lists, labels);
+  } catch (error: any) {
+    // Handle auto-cancellation gracefully
+    if (error?.isAbort || error?.message?.includes('autocancelled')) {
+      console.warn(`Board ${boardId} request was cancelled`);
+      throw new Error('Request was cancelled, please try again');
+    }
+    throw error;
+  }
 };
 
 // React Query Hooks
@@ -314,7 +368,7 @@ export const useUpdateCard = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ cardId, boardId, updates }: { cardId: string; boardId: string; updates: Partial<Card> }) => {
+    mutationFn: async ({ cardId, updates }: { cardId: string; boardId: string; updates: Partial<Card> }) => {
       // Convert Card updates to PocketBase format
       const pbUpdates: any = {};
       
@@ -346,7 +400,7 @@ export const useUpdateList = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ listId, boardId, updates }: { listId: string; boardId: string; updates: { title?: string; position?: number } }) => {
+    mutationFn: async ({ listId, updates }: { listId: string; boardId: string; updates: { title?: string; position?: number } }) => {
       const updatedRecord = await pb.collection('lists').update(listId, updates);
       return mapRecordToList(updatedRecord);
     },
@@ -360,7 +414,7 @@ export const useDeleteList = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ listId, boardId }: { listId: string; boardId: string }) => {
+    mutationFn: async ({ listId }: { listId: string; boardId: string }) => {
       await pb.collection('lists').delete(listId);
     },
     onSuccess: (_, { boardId }) => {
@@ -392,7 +446,7 @@ export const useUpdateLabel = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ labelId, boardId, updates }: { labelId: string; boardId: string; updates: { name?: string; color?: string } }) => {
+    mutationFn: async ({ labelId, updates }: { labelId: string; boardId: string; updates: { name?: string; color?: string } }) => {
       const updatedRecord = await pb.collection('labels').update(labelId, updates);
       return mapRecordToLabel(updatedRecord);
     },
@@ -406,7 +460,7 @@ export const useDeleteLabel = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ labelId, boardId }: { labelId: string; boardId: string }) => {
+    mutationFn: async ({ labelId }: { labelId: string; boardId: string }) => {
       await pb.collection('labels').delete(labelId);
     },
     onSuccess: (_, { boardId }) => {
