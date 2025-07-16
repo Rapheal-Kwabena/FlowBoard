@@ -333,7 +333,6 @@ export const useMoveCard = () => {
 
   return useMutation({
     mutationFn: async ({
-      boardId,
       cardId,
       sourceListId,
       destinationListId,
